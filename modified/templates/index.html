@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>EV Battery Digital Twin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e1217;
+    --panel:#171c23;
+    --panel-2:#1d2430;
+    --grid:#2a323d;
+    --text:#e7edf3;
+    --text-dim:#8b96a3;
+    --cyan:#5ee6d8;
+    --cyan-dim:#3a8c83;
+    --amber:#ffb340;
+    --red:#ff5d5d;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/100% 32px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/32px 100%,
+      var(--bg);
+    background-attachment:fixed;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:980px;margin:0 auto;padding:28px 18px 60px;}
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+  .title-block .eyebrow{
+    font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;
+    color:var(--cyan);text-transform:uppercase;margin:0 0 4px;
+  }
+  h1{
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:26px;
+    margin:0;letter-spacing:-0.01em;
+  }
+  .car-picker{display:flex;flex-direction:column;gap:4px;min-width:260px;}
+  .car-picker label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);letter-spacing:.08em;text-transform:uppercase;}
+  select{
+    appearance:none;background:var(--panel-2);border:1px solid var(--grid);color:var(--text);
+    font-family:'JetBrains Mono',monospace;font-size:13px;padding:10px 14px;border-radius:8px;
+    cursor:pointer;outline:none;
+  }
+  select:focus{border-color:var(--cyan);}
+
+  /* ---------- spec strip ---------- */
+  .spec-strip{
+    display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--grid);
+    border:1px solid var(--grid);border-radius:var(--radius);overflow:hidden;margin-bottom:22px;
+  }
+  .spec-cell{background:var(--panel);padding:12px 14px;}
+  .spec-cell .k{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;}
+  .spec-cell .v{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500;}
+  @media (max-width:720px){ .spec-strip{grid-template-columns:repeat(2,1fr);} }
+
+  /* ---------- main grid ---------- */
+  .main-grid{display:grid;grid-template-columns:280px 1fr;gap:18px;margin-bottom:18px;}
+  @media (max-width:720px){ .main-grid{grid-template-columns:1fr;} }
+  .panel{background:var(--panel);border:1px solid var(--grid);border-radius:var(--radius);padding:20px;}
+
+  /* ---------- SOC gauge (signature element) ---------- */
+  .gauge-panel{display:flex;flex-direction:column;align-items:center;gap:14px;}
+  .gauge-wrap{position:relative;width:220px;height:220px;}
+  .gauge-wrap svg{width:100%;height:100%;transform:rotate(-90deg);}
+  .gauge-track{fill:none;stroke:var(--grid);stroke-width:14;}
+  .gauge-fill{fill:none;stroke:var(--cyan);stroke-width:14;stroke-linecap:round;
+    transition:stroke-dashoffset .6s ease, stroke .4s ease;}
+  .gauge-fill.warn{stroke:var(--amber);}
+  .gauge-fill.crit{stroke:var(--red);}
+  .gauge-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .gauge-center .pct{font-family:'JetBrains Mono',monospace;font-size:38px;font-weight:700;line-height:1;}
+  .gauge-center .lbl{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.15em;color:var(--text-dim);margin-top:6px;text-transform:uppercase;}
+  .pulse{animation:pulseGlow 1.6s ease-in-out infinite;}
+  @keyframes pulseGlow{
+    0%,100%{filter:drop-shadow(0 0 0px var(--cyan));}
+    50%{filter:drop-shadow(0 0 10px var(--cyan));}
+  }
+  .status-pill{
+    font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    padding:6px 14px;border-radius:20px;border:1px solid var(--grid);background:var(--panel-2);
+  }
+  .alert-banner{
+    width:100%;text-align:center;font-size:13px;padding:9px 10px;border-radius:8px;
+    background:var(--panel-2);border:1px solid var(--grid);
+  }
+
+  /* ---------- readout cluster ---------- */
+  .readouts{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--grid);
+    border:1px solid var(--grid);border-radius:var(--radius);overflow:hidden;}
+  .readout{background:var(--panel);padding:16px 18px;}
+  .readout .k{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;}
+  .readout .v{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:600;}
+  .readout .v small{font-size:13px;color:var(--text-dim);font-weight:400;margin-left:4px;}
+  #sparkline{display:block;width:100%;height:44px;margin-top:8px;}
+
+  /* ---------- diagnostics row ---------- */
+  .diag-row{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--grid);
+    border:1px solid var(--grid);border-radius:var(--radius);overflow:hidden;margin-bottom:18px;}
+  .diag-cell{background:var(--panel);padding:14px 12px;text-align:center;}
+  .diag-cell .k{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+  .diag-cell .v{font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:600;}
+  @media (max-width:720px){ .diag-row{grid-template-columns:repeat(3,1fr);} }
+
+  /* ---------- control deck ---------- */
+  .deck{background:var(--panel);border:1px solid var(--grid);border-radius:var(--radius);padding:18px 20px;}
+  .deck-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  button.switch{
+    font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
+    background:var(--panel-2);border:1px solid var(--grid);color:var(--text);padding:11px 16px;
+    border-radius:8px;cursor:pointer;transition:.15s;
+  }
+  button.switch:hover{border-color:var(--cyan);color:var(--cyan);}
+  button.switch.active{background:var(--cyan);color:#06201d;border-color:var(--cyan);}
+  button.switch.reset{margin-left:auto;}
+  .speed-control{display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-dim);}
+  .speed-control input{accent-color:var(--cyan);}
+  footer{margin-top:22px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:.08em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title-block">
+      <p class="eyebrow">Battery Management System · Simulator</p>
+      <h1>EV Battery Digital Twin</h1>
+    </div>
+    <div class="car-picker">
+      <label for="carSelect">Active vehicle</label>
+      <select id="carSelect"></select>
+    </div>
+  </header>
+
+  <div class="spec-strip" id="specStrip"></div>
+
+  <div class="main-grid">
+    <div class="panel gauge-panel">
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 220 220">
+          <circle class="gauge-track" cx="110" cy="110" r="92"></circle>
+          <circle class="gauge-fill" id="gaugeFill" cx="110" cy="110" r="92"
+                  stroke-dasharray="578" stroke-dashoffset="578"></circle>
+        </svg>
+        <div class="gauge-center">
+          <div class="pct" id="socValue">--%</div>
+          <div class="lbl">State of charge</div>
+        </div>
+      </div>
+      <div class="status-pill" id="statusPill">IDLE</div>
+      <div class="alert-banner" id="alertBanner">—</div>
+    </div>
+
+    <div class="panel">
+      <div class="readouts">
+        <div class="readout">
+          <div class="k">Voltage</div>
+          <div class="v"><span id="voltageValue">--</span><small>V</small></div>
+        </div>
+        <div class="readout">
+          <div class="k">Current</div>
+          <div class="v"><span id="currentValue">--</span><small>A</small></div>
+        </div>
+        <div class="readout">
+          <div class="k">Power</div>
+          <div class="v"><span id="powerValue">--</span><small>kW</small></div>
+        </div>
+        <div class="readout">
+          <div class="k">Pack Temp</div>
+          <div class="v"><span id="tempValue">--</span><small>°C</small></div>
+        </div>
+      </div>
+      <canvas id="sparkline" width="600" height="88"></canvas>
+    </div>
+  </div>
+
+  <div class="diag-row">
+    <div class="diag-cell"><div class="k">SoH</div><div class="v" id="sohValue">--%</div></div>
+    <div class="diag-cell"><div class="k">RUL</div><div class="v" id="rulValue">--</div></div>
+    <div class="diag-cell"><div class="k">Health</div><div class="v" id="healthValue">--</div></div>
+    <div class="diag-cell"><div class="k">Cycles</div><div class="v" id="cyclesValue">--</div></div>
+    <div class="diag-cell"><div class="k">Imbalance</div><div class="v" id="imbalanceValue">--mV</div></div>
+    <div class="diag-cell"><div class="k">Coulombic η</div><div class="v" id="coulombicValue">--%</div></div>
+  </div>
+
+  <div class="deck">
+    <div class="deck-row">
+      <button class="switch" data-cmd="idle">Idle</button>
+      <button class="switch" data-cmd="charge" data-fast="false">AC Charge</button>
+      <button class="switch" data-cmd="charge" data-fast="true">DC Fast Charge</button>
+      <button class="switch" data-cmd="discharge">Drive</button>
+      <div class="speed-control">
+        Speed
+        <input type="range" id="speedSlider" min="5" max="180" value="60">
+        <span id="speedReadout">60 km/h</span>
+      </div>
+      <button class="switch reset" id="resetBtn">Reset</button>
+    </div>
+  </div>
+
+  <footer>SIMULATED TELEMETRY · NOT FOR VEHICLE DIAGNOSTIC USE</footer>
+</div>
+
+<script>
+const GAUGE_CIRC = 2 * Math.PI * 92; // ≈ 578
+
+let cars = [];
+let sparkHistory = [];
+const SPARK_LEN = 60;
+
+async function loadCars(){
+  const res = await fetch('/cars');
+  cars = await res.json();
+  const sel = document.getElementById('carSelect');
+  sel.innerHTML = cars
+    .sort((a,b)=> a.market === b.market ? a.name.localeCompare(b.name) : a.market.localeCompare(b.market))
+    .map(c => `<option value="${c.id}">${c.market} · ${c.name}</option>`).join('');
+  sel.value = 'tata_nexon_ev';
+  sel.addEventListener('change', async () => {
+    await fetch('/select_car', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({car_id: sel.value})});
+    sparkHistory = [];
+    poll();
+  });
+}
+
+function renderSpecStrip(car){
+  const fields = [
+    ['Segment', car.segment],
+    ['Battery', car.battery_kwh + ' kWh'],
+    ['Range', car.range_km + ' km'],
+    ['Architecture', car.voltage_nominal + ' V'],
+    ['Price', car.price],
+  ];
+  document.getElementById('specStrip').innerHTML = fields.map(([k,v]) =>
+    `<div class="spec-cell"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+}
+
+function setGauge(pct, status, alertText){
+  const offset = GAUGE_CIRC * (1 - pct/100);
+  const fill = document.getElementById('gaugeFill');
+  fill.style.strokeDashoffset = offset;
+  fill.classList.remove('warn','crit');
+  if (alertText.includes('CRITICAL')) fill.classList.add('crit');
+  else if (alertText.includes('WARNING')) fill.classList.add('warn');
+
+  const wrap = document.querySelector('.gauge-wrap');
+  wrap.classList.toggle('pulse', status === 'CHARGING' || status === 'DISCHARGING');
+}
+
+function drawSparkline(){
+  const canvas = document.getElementById('sparkline');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle = '#2a323d';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0,h/2); ctx.lineTo(w,h/2); ctx.stroke();
+  if (sparkHistory.length < 2) return;
+  const max = Math.max(10, ...sparkHistory.map(v=>Math.abs(v)));
+  ctx.strokeStyle = '#5ee6d8';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  sparkHistory.forEach((v,i)=>{
+    const x = (i/(SPARK_LEN-1))*w;
+    const y = h/2 - (v/max)*(h/2-6);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+
+async function poll(){
+  const res = await fetch('/data');
+  const d = await res.json();
+
+  renderSpecStrip(d.car);
+  document.getElementById('socValue').textContent = d.soc.toFixed(1) + '%';
+  document.getElementById('voltageValue').textContent = d.voltage.toFixed(1);
+  document.getElementById('currentValue').textContent = d.current.toFixed(1);
+  document.getElementById('powerValue').textContent = d.power_kw.toFixed(1);
+  document.getElementById('tempValue').textContent = d.temperature.toFixed(1);
+  document.getElementById('sohValue').textContent = d.soh.toFixed(1) + '%';
+  document.getElementById('rulValue').textContent = d.rul + 'h';
+  document.getElementById('healthValue').textContent = d.health_score;
+  document.getElementById('cyclesValue').textContent = d.cycles;
+  document.getElementById('imbalanceValue').textContent = d.cell_imbalance + 'mV';
+  document.getElementById('coulombicValue').textContent = d.coulombic_eff + '%';
+  document.getElementById('statusPill').textContent = d.status;
+  document.getElementById('alertBanner').textContent = d.alert;
+
+  setGauge(d.soc, d.status, d.alert);
+
+  sparkHistory.push(d.current);
+  if (sparkHistory.length > SPARK_LEN) sparkHistory.shift();
+  drawSparkline();
+
+  document.querySelectorAll('button[data-cmd]').forEach(btn=>{
+    const isActive = btn.dataset.cmd === 'charge'
+      ? (d.status === 'CHARGING' && ((btn.dataset.fast === 'true') === (d.charge_mode === 'fast')))
+      : (btn.dataset.cmd === d.status.toLowerCase());
+    btn.classList.toggle('active', isActive);
+  });
+}
+
+document.querySelectorAll('button[data-cmd]').forEach(btn=>{
+  btn.addEventListener('click', async () => {
+    const body = {cmd: btn.dataset.cmd};
+    if (btn.dataset.cmd === 'charge') body.fast = btn.dataset.fast === 'true';
+    if (btn.dataset.cmd === 'discharge') body.speed = document.getElementById('speedSlider').value;
+    await fetch('/cmd', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    poll();
+  });
+});
+
+document.getElementById('speedSlider').addEventListener('input', (e)=>{
+  document.getElementById('speedReadout').textContent = e.target.value + ' km/h';
+});
+document.getElementById('speedSlider').addEventListener('change', async (e)=>{
+  await fetch('/cmd', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cmd:'discharge', speed:e.target.value})});
+});
+
+document.getElementById('resetBtn').addEventListener('click', async ()=>{
+  await fetch('/reset', {method:'POST'});
+  sparkHistory = [];
+  poll();
+});
+
+(async function init(){
+  await loadCars();
+  await poll();
+  setInterval(poll, 1800);
+})();
+</script>
+</body>
+</html>
